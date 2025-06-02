@@ -39,7 +39,12 @@ fn expr(input: Span) -> IResult<Span, DynExpr> {
 }
 
 fn constant(input: Span) -> IResult<Span, DynExpr> {
-    alt((int, float, char, string)).parse(input)
+    alt((
+        int,
+        float,
+        // char,
+        // string
+    )).parse(input)
 }
 
 // fn type_def(input: Span) -> IResult<Span, DynExpr> {
