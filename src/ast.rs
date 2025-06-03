@@ -4,11 +4,22 @@ pub type DynExpr = Box<dyn Expr>;
 
 pub trait Expr {
     fn debug_text(&self) -> String;
+    fn internal_clone_thing_because_stupid(&self) -> DynExpr;
+}
+
+impl Clone for DynExpr {
+    fn clone(&self) -> Self {
+        self.internal_clone_thing_because_stupid()
+    }
 }
 
 impl Expr for i64 {
     fn debug_text(&self) -> String {
         format!("Int64: {}", self)
+    }
+
+    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+        Box::new(self.clone()) as DynExpr
     }
 }
 
@@ -16,11 +27,19 @@ impl Expr for f64 {
     fn debug_text(&self) -> String {
         format!("Float64: {}", self)
     }
+
+    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+        Box::new(self.clone()) as DynExpr
+    }
 }
 
 impl Expr for char {
     fn debug_text(&self) -> String {
         format!("Char: \'{}\'", self)
+    }
+
+    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+        Box::new(self.clone()) as DynExpr
     }
 }
 
@@ -28,8 +47,13 @@ impl Expr for String {
     fn debug_text(&self) -> String {
         format!("String: \"{}\"", self)
     }
+
+    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+        Box::new(self.clone()) as DynExpr
+    }
 }
 
+#[derive(Clone)]
 pub struct Assignment {
     pub name: String,
     pub body: DynExpr,
@@ -39,8 +63,13 @@ impl Expr for Assignment {
     fn debug_text(&self) -> String {
         format!("Assignment: {{ Name: {}, Body: {} }}", self.name, self.body.debug_text())
     }
+
+    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+        Box::new(self.clone()) as DynExpr
+    }
 }
 
+#[derive(Clone)]
 pub struct FnDef {
     pub arg_name: String,
     pub arg_type: String,
@@ -52,8 +81,13 @@ impl Expr for FnDef {
     fn debug_text(&self) -> String {
         format!("FnDef: {{ ArgName: {}, ArgType: {}, RetType: {}, Body: {} }}", self.arg_name, self.arg_type, self.ret_type.clone().unwrap_or(String::from("null")), self.body.debug_text())
     }
+
+    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+        Box::new(self.clone()) as DynExpr
+    }
 }
 
+// #[derive(Clone)]
 // pub struct TypeDef {
 //     pub name: String,
 //     pub fields: HashMap<String, DynExpr>,
@@ -63,6 +97,7 @@ impl Expr for FnDef {
 //
 // }
 
+#[derive(Clone)]
 pub struct FnCall {
     pub func: DynExpr,
     pub arg: DynExpr,
@@ -71,5 +106,9 @@ pub struct FnCall {
 impl Expr for FnCall {
     fn debug_text(&self) -> String {
         format!("FnCall: {{ Func: {}, Arg: {} }}", self.func.debug_text(), self.arg.debug_text())
+    }
+
+    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+        Box::new(self.clone()) as DynExpr
     }
 }
