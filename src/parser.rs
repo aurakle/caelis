@@ -2,11 +2,16 @@ use chumsky::{prelude::*, recursive::Indirect, text::ident};
 
 use crate::ast::{self, DynExpr, Field};
 
-pub(crate) fn create<'src>() -> impl Parser<'src, &'src str, Vec<ast::Assignment>, extra::Err<Rich<'src, char>>> {
-    assignment().padded_by(whitespace().or_not()).repeated().collect()
+pub(crate) fn create<'src>(
+) -> impl Parser<'src, &'src str, Vec<ast::Assignment>, extra::Err<Rich<'src, char>>> {
+    assignment()
+        .padded_by(whitespace().or_not())
+        .repeated()
+        .collect()
 }
 
-fn assignment<'src>() -> impl Parser<'src, &'src str, ast::Assignment, extra::Err<Rich<'src, char>>> {
+fn assignment<'src>() -> impl Parser<'src, &'src str, ast::Assignment, extra::Err<Rich<'src, char>>>
+{
     name()
         .then(just("=").padded_by(whitespace()))
         .then(expr())
@@ -25,7 +30,9 @@ fn expr<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, c
     expr
 }
 
-fn non_call_expr<'src>(expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
+fn non_call_expr<'src>(
+    expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
+) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
     choice((
         fn_def(expr.clone()),
         field(),
@@ -71,12 +78,7 @@ fn fn_call<'src>(
 }
 
 fn field<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
-    name()
-        .map(|r| {
-            Box::new(Field {
-                name: r
-            }) as DynExpr
-        })
+    name().map(|r| Box::new(Field { name: r }) as DynExpr)
 }
 
 fn constant<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
@@ -95,11 +97,13 @@ fn name<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, ch
     ident().map(|r| String::from(r))
 }
 
-fn alphanumerical<'src>() -> impl Parser<'src, &'src str, char, extra::Err<Rich<'src, char>>> + Clone {
+fn alphanumerical<'src>() -> impl Parser<'src, &'src str, char, extra::Err<Rich<'src, char>>> + Clone
+{
     alphabetical().or(numerical())
 }
 
-fn alphabetical<'src>() -> impl Parser<'src, &'src str, char, extra::Err<Rich<'src, char>>> + Clone {
+fn alphabetical<'src>() -> impl Parser<'src, &'src str, char, extra::Err<Rich<'src, char>>> + Clone
+{
     one_of('a'..='z').or(one_of('A'..='Z'))
 }
 
@@ -107,7 +111,8 @@ fn numerical<'src>() -> impl Parser<'src, &'src str, char, extra::Err<Rich<'src,
     one_of('0'..='9')
 }
 
-fn whitespace<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
+fn whitespace<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone
+{
     indent().or(linebreak()).repeated().at_least(1).collect()
 }
 

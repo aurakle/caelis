@@ -4,8 +4,8 @@ use ast::Expr;
 use chumsky::Parser;
 
 mod ast;
-mod parser;
 mod generator;
+mod parser;
 
 fn main() {
     let text = fs::read_to_string("./test/file.cae").unwrap();

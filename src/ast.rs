@@ -3,13 +3,14 @@ use std::collections::HashMap;
 pub type DynExpr = Box<dyn Expr>;
 
 pub trait Expr {
+    //TODO: use serde_json?
     fn debug_text(&self) -> String;
-    fn internal_clone_thing_because_stupid(&self) -> DynExpr;
+    fn boxed(&self) -> DynExpr;
 }
 
 impl Clone for DynExpr {
     fn clone(&self) -> Self {
-        self.internal_clone_thing_because_stupid()
+        self.boxed()
     }
 }
 
@@ -18,7 +19,7 @@ impl Expr for i64 {
         format!("Int64: {}", self)
     }
 
-    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+    fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
 }
@@ -28,7 +29,7 @@ impl Expr for f64 {
         format!("Float64: {}", self)
     }
 
-    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+    fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
 }
@@ -38,7 +39,7 @@ impl Expr for char {
         format!("Char: \'{}\'", self)
     }
 
-    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+    fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
 }
@@ -48,7 +49,7 @@ impl Expr for String {
         format!("String: \"{}\"", self)
     }
 
-    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+    fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
 }
@@ -63,7 +64,7 @@ impl Expr for Field {
         format!("Field: {{ Name: {} }}", self.name)
     }
 
-    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+    fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
 }
@@ -76,10 +77,14 @@ pub struct Assignment {
 
 impl Expr for Assignment {
     fn debug_text(&self) -> String {
-        format!("Assignment: {{ Name: {}, Body: {} }}", self.name, self.body.debug_text())
+        format!(
+            "Assignment: {{ Name: {}, Body: {} }}",
+            self.name,
+            self.body.debug_text()
+        )
     }
 
-    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+    fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
 }
@@ -94,10 +99,16 @@ pub struct FnDef {
 
 impl Expr for FnDef {
     fn debug_text(&self) -> String {
-        format!("FnDef: {{ ArgName: {}, ArgType: {}, RetType: {}, Body: {} }}", self.arg_name, self.arg_type, self.ret_type.clone().unwrap_or(String::from("null")), self.body.debug_text())
+        format!(
+            "FnDef: {{ ArgName: {}, ArgType: {}, RetType: {}, Body: {} }}",
+            self.arg_name,
+            self.arg_type,
+            self.ret_type.clone().unwrap_or(String::from("null")),
+            self.body.debug_text()
+        )
     }
 
-    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+    fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
 }
@@ -120,10 +131,14 @@ pub struct FnCall {
 
 impl Expr for FnCall {
     fn debug_text(&self) -> String {
-        format!("FnCall: {{ Func: {}, Arg: {} }}", self.func.debug_text(), self.arg.debug_text())
+        format!(
+            "FnCall: {{ Func: {}, Arg: {} }}",
+            self.func.debug_text(),
+            self.arg.debug_text()
+        )
     }
 
-    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+    fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
 }
