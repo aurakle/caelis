@@ -1,7 +1,6 @@
-use chumsky::{extra::ParserExtra, prelude::*, recursive::Indirect};
-use once_cell::sync::OnceCell;
+use chumsky::{prelude::*, recursive::Indirect};
 
-use crate::ast::{self, DynExpr, Expr};
+use crate::ast::{self, DynExpr};
 
 pub(crate) fn parser<'src>() -> impl Parser<'src, &'src str, Vec<ast::Assignment>> {
     assignment().padded_by(whitespace()).repeated().collect()
@@ -23,17 +22,20 @@ fn assignment<'src>() -> impl Parser<'src, &'src str, ast::Assignment> {
 }
 
 fn expr<'src>() -> impl Parser<'src, &'src str, DynExpr> {
-    recursive(|expr|
+    let mut expr = Recursive::declare();
+    expr.define(
         choice((
             fn_def(expr.clone()),
             fn_call(expr.clone()),
             constant(),
-            expr.delimited_by(just('('), just(')'))
+            expr.clone().delimited_by(just('('), just(')'))
         ))
-    )
+    );
+
+    expr
 }
 
-fn fn_def<'src>(expr: Recursive<dyn Parser<'src, &'src str, DynExpr>>) -> impl Parser<'src, &'src str, DynExpr> + Clone {
+fn fn_def<'src>(expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Default>>) -> impl Parser<'src, &'src str, DynExpr> + Clone {
     name()
         .then_ignore(whitespace())
         .then(type_ref())
@@ -53,7 +55,7 @@ fn fn_def<'src>(expr: Recursive<dyn Parser<'src, &'src str, DynExpr>>) -> impl P
         })
 }
 
-fn fn_call<'src>(expr: Recursive<dyn Parser<'src, &'src str, DynExpr>>) -> impl Parser<'src, &'src str, DynExpr> + Clone {
+fn fn_call<'src>(expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Default>>) -> impl Parser<'src, &'src str, DynExpr> + Clone {
     todo()
 }
 
@@ -61,13 +63,13 @@ fn constant<'src>() -> impl Parser<'src, &'src str, DynExpr> + Clone {
     todo()
 }
 
-fn type_ref<'src>() -> impl Parser<'src, &'src str, String> {
+fn type_ref<'src>() -> impl Parser<'src, &'src str, String> + Clone {
     just(':')
         .ignore_then(name())
         .then_ignore(whitespace())
 }
 
-fn name<'src>() -> impl Parser<'src, &'src str, String> {
+fn name<'src>() -> impl Parser<'src, &'src str, String> + Clone {
     just('_')
         .or(alphabetical())
         .repeated()
@@ -81,26 +83,26 @@ fn name<'src>() -> impl Parser<'src, &'src str, String> {
         .map(|r| format!("{}{}", r.0, r.1))
 }
 
-fn alphanumerical<'src>() -> impl Parser<'src, &'src str, char> {
+fn alphanumerical<'src>() -> impl Parser<'src, &'src str, char> + Clone {
     alphabetical().or(numerical())
 }
 
-fn alphabetical<'src>() -> impl Parser<'src, &'src str, char> {
+fn alphabetical<'src>() -> impl Parser<'src, &'src str, char> + Clone {
     one_of('a'..='z').or(one_of('A'..='Z'))
 }
 
-fn numerical<'src>() -> impl Parser<'src, &'src str, char> {
+fn numerical<'src>() -> impl Parser<'src, &'src str, char> + Clone {
     one_of('0'..='9')
 }
 
-fn whitespace<'src>() -> impl Parser<'src, &'src str, ()> {
-    indent().or(linebreak()).repeated().at_least(1)
+fn whitespace<'src>() -> impl Parser<'src, &'src str, String> + Clone {
+    indent().or(linebreak()).repeated().at_least(1).collect()
 }
 
-fn indent<'src>() -> impl Parser<'src, &'src str, char> {
+fn indent<'src>() -> impl Parser<'src, &'src str, char> + Clone {
     one_of(" 	")
 }
 
-fn linebreak<'src>() -> impl Parser<'src, &'src str, char> {
+fn linebreak<'src>() -> impl Parser<'src, &'src str, char> + Clone {
     one_of("\r\n")
 }
