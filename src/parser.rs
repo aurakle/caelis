@@ -1,31 +1,34 @@
-use chumsky::{prelude::*, recursive::Indirect, text::ident};
+use chumsky::{input::ValueInput, prelude::*, recursive::Indirect, text::{ident, keyword}};
 
-use crate::ast::{self, DynExpr, Field};
+use crate::ast::{self, DynExpr};
 
 pub(crate) fn create<'src>(
 ) -> impl Parser<'src, &'src str, Vec<ast::Assignment>, extra::Err<Rich<'src, char>>> {
-    assignment()
-        .padded_by(whitespace().or_not())
-        .repeated()
-        .collect()
+    assignment().padded().repeated().collect()
 }
 
 fn assignment<'src>() -> impl Parser<'src, &'src str, ast::Assignment, extra::Err<Rich<'src, char>>>
 {
     name()
-        .then(just("=").padded_by(whitespace()))
-        .then(expr())
+        .then_ignore(just('=').padded())
+        .then(expr().padded())
+        .then_ignore(just(';').padded())
         .map(|r| {
-            let name = r.0 .0;
+            let name = r.0;
             let body = r.1;
 
             ast::Assignment { name, body }
         })
+        .labelled("definition")
 }
 
 fn expr<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> {
     let mut expr = Recursive::declare();
-    expr.define(fn_call(expr.clone()).or(non_call_expr(expr.clone())));
+    expr.define(choice((
+        fn_def(expr.clone()),
+        fn_call(expr.clone()),
+        non_call_expr(expr.clone()),
+    )).labelled("expression"));
 
     expr
 }
@@ -34,10 +37,12 @@ fn non_call_expr<'src>(
     expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
 ) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
     choice((
-        fn_def(expr.clone()),
-        field(),
         constant(),
-        expr.clone().delimited_by(just('('), just(')')),
+        literal(),
+        expr.clone().delimited_by(
+            just('(').then(whitespace().or_not()),
+            whitespace().or_not().then(just(')')),
+        ),
     ))
 }
 
@@ -47,10 +52,9 @@ fn fn_def<'src>(
     name()
         .then_ignore(whitespace())
         .then(type_ref())
-        .then_ignore(just("->"))
-        .then_ignore(whitespace().or_not())
+        .then_ignore(just("->").padded())
         .then(type_ref().or_not())
-        .then(expr)
+        .then(expr.padded())
         .map(|r| {
             let (((arg_name, arg_type), ret_type), body) = r;
 
@@ -61,30 +65,49 @@ fn fn_def<'src>(
                 body,
             }) as DynExpr
         })
+        .labelled("function definition")
 }
 
 fn fn_call<'src>(
     expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
 ) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
-    non_call_expr(expr.clone())
-        .then_ignore(whitespace())
-        .then(non_call_expr(expr))
-        .map(|r| {
+    non_call_expr(expr.clone()).foldl(
+        whitespace().ignore_then(non_call_expr(expr)).repeated(),
+        |left, right| {
             Box::new(ast::FnCall {
-                func: r.0,
-                arg: r.1,
+                func: left,
+                arg: right,
             }) as DynExpr
-        })
-}
-
-fn field<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
-    name().map(|r| Box::new(Field { name: r }) as DynExpr)
+        },
+    ).labelled("function application")
 }
 
 fn constant<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
+    name().map(|r| Box::new(ast::Constant { name: r }) as DynExpr)
+}
+
+fn literal<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
     //TODO: add support for other constants
+    choice((
+        float(),
+        int(),
+    ))
+}
+
+fn int<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
     text::int(10)
+        .padded()
         .from_str::<i64>()
+        .unwrapped() // should never fail
+        .map(|r| Box::new(r) as DynExpr)
+}
+
+fn float<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
+    text::int(10)
+        .then(just('.')
+        .then(text::digits(10)).or_not())
+        .to_slice()
+        .from_str::<f64>()
         .unwrapped() // should never fail
         .map(|r| Box::new(r) as DynExpr)
 }
@@ -95,20 +118,6 @@ fn type_ref<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src
 
 fn name<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
     ident().map(|r| String::from(r))
-}
-
-fn alphanumerical<'src>() -> impl Parser<'src, &'src str, char, extra::Err<Rich<'src, char>>> + Clone
-{
-    alphabetical().or(numerical())
-}
-
-fn alphabetical<'src>() -> impl Parser<'src, &'src str, char, extra::Err<Rich<'src, char>>> + Clone
-{
-    one_of('a'..='z').or(one_of('A'..='Z'))
-}
-
-fn numerical<'src>() -> impl Parser<'src, &'src str, char, extra::Err<Rich<'src, char>>> + Clone {
-    one_of('0'..='9')
 }
 
 fn whitespace<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone

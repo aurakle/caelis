@@ -17,4 +17,5 @@ in pkgs.mkShell {
   RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
   RUST_BACKTRACE = 1;
   LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libs;
+  LLVM_SYS_181_PREFIX = "${pkgs.llvmPackages_18.libllvm.dev}";
 }

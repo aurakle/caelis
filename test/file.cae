@@ -1,1 +1,6 @@
-div = x :i32 -> div x x
+pi = 3;
+
+mulAndByPi = x :i32 ->
+             y :i32 ->
+  mul (mul x y) pi
+;
