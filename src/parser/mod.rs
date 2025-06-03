@@ -61,7 +61,7 @@ fn fn_call<'src>(
 ) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
     non_call_expr(expr.clone())
         .then_ignore(whitespace())
-        .then(expr)
+        .then(non_call_expr(expr))
         .map(|r| {
             Box::new(ast::FnCall {
                 func: r.0,
