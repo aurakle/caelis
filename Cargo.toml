@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chumsky = { version = "0.10.1", features = ["lexical-numbers", "memoization"] }
+chumsky = { version = "0.10.1", features = ["memoization"] }

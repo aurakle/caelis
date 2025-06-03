@@ -54,6 +54,21 @@ impl Expr for String {
 }
 
 #[derive(Clone)]
+pub struct Field {
+    pub name: String,
+}
+
+impl Expr for Field {
+    fn debug_text(&self) -> String {
+        format!("Field: {{ Name: {} }}", self.name)
+    }
+
+    fn internal_clone_thing_because_stupid(&self) -> DynExpr {
+        Box::new(self.clone()) as DynExpr
+    }
+}
+
+#[derive(Clone)]
 pub struct Assignment {
     pub name: String,
     pub body: DynExpr,

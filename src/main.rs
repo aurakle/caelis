@@ -9,10 +9,17 @@ mod generator;
 
 fn main() {
     let text = fs::read_to_string("./test/file.cae").unwrap();
-    let result = parser::parser().parse(&text).into_result().unwrap();
+    //TODO: this gives bad error messages
+    let (output, errors) = parser::create().parse(&text).into_output_errors();
 
-    println!("Finished parsing, printing results");
-    for item in result {
-        println!("{}", item.debug_text());
+    for item in errors {
+        println!("Error {} in span {}", item, item.span());
     }
+
+    output.map(|result| {
+        println!("Finished parsing, printing results");
+        for item in result {
+            println!("{}", item.debug_text());
+        }
+    });
 }
