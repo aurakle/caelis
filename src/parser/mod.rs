@@ -14,28 +14,25 @@ fn assignment<'src>() -> impl Parser<'src, &'src str, ast::Assignment> {
             let name = r.0 .0;
             let body = r.1;
 
-            ast::Assignment {
-                name,
-                body
-            }
+            ast::Assignment { name, body }
         })
 }
 
 fn expr<'src>() -> impl Parser<'src, &'src str, DynExpr> {
     let mut expr = Recursive::declare();
-    expr.define(
-        choice((
-            fn_def(expr.clone()),
-            fn_call(expr.clone()),
-            constant(),
-            expr.clone().delimited_by(just('('), just(')'))
-        ))
-    );
+    expr.define(choice((
+        fn_def(expr.clone()),
+        fn_call(expr.clone()),
+        constant(),
+        expr.clone().delimited_by(just('('), just(')')),
+    )));
 
     expr
 }
 
-fn fn_def<'src>(expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Default>>) -> impl Parser<'src, &'src str, DynExpr> + Clone {
+fn fn_def<'src>(
+    expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Default>>,
+) -> impl Parser<'src, &'src str, DynExpr> + Clone {
     name()
         .then_ignore(whitespace())
         .then(type_ref())
@@ -55,7 +52,9 @@ fn fn_def<'src>(expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::
         })
 }
 
-fn fn_call<'src>(expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Default>>) -> impl Parser<'src, &'src str, DynExpr> + Clone {
+fn fn_call<'src>(
+    expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Default>>,
+) -> impl Parser<'src, &'src str, DynExpr> + Clone {
     todo()
 }
 
@@ -64,9 +63,7 @@ fn constant<'src>() -> impl Parser<'src, &'src str, DynExpr> + Clone {
 }
 
 fn type_ref<'src>() -> impl Parser<'src, &'src str, String> + Clone {
-    just(':')
-        .ignore_then(name())
-        .then_ignore(whitespace())
+    just(':').ignore_then(name()).then_ignore(whitespace())
 }
 
 fn name<'src>() -> impl Parser<'src, &'src str, String> + Clone {
