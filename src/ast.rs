@@ -3,7 +3,30 @@ use std::fmt::Debug;
 
 use serde::Serialize;
 
+pub type DynDef = Box<dyn TopLevelDef>;
 pub type DynExpr = Box<dyn Expr>;
+
+pub trait TopLevelDef: Debug {
+}
+
+#[derive(Debug, Clone)]
+pub struct Assignment {
+    pub name: String,
+    pub body: DynExpr,
+}
+
+impl TopLevelDef for Assignment {
+}
+
+#[derive(Debug, Clone)]
+pub struct GenericAssignment {
+    pub name: String,
+    pub args: HashMap<String, Vec<TypeRef>>,
+}
+
+impl TopLevelDef for GenericAssignment {
+
+}
 
 pub trait Expr: Debug {
     fn boxed(&self) -> DynExpr;
@@ -51,22 +74,10 @@ impl Expr for Constant {
 }
 
 #[derive(Debug, Clone)]
-pub struct Assignment {
-    pub name: String,
-    pub body: DynExpr,
-}
-
-impl Expr for Assignment {
-    fn boxed(&self) -> DynExpr {
-        Box::new(self.clone()) as DynExpr
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct FnDef {
     pub arg_name: String,
-    pub arg_type: String,
-    pub ret_type: Option<String>,
+    pub arg_type: TypeRef,
+    pub ret_type: Option<TypeRef>,
     pub body: DynExpr,
 }
 
@@ -86,4 +97,10 @@ impl Expr for FnCall {
     fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum TypeRef {
+    Named(String),
+    // Function(),
 }

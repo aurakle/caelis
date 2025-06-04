@@ -1,25 +1,48 @@
 use chumsky::{input::ValueInput, prelude::*, recursive::Indirect, text::{ident, keyword}};
 
-use crate::ast::{self, DynExpr};
+use crate::ast::{self, DynDef, DynExpr, TypeRef};
 
 pub(crate) fn create<'src>(
-) -> impl Parser<'src, &'src str, Vec<ast::Assignment>, extra::Err<Rich<'src, char>>> {
-    assignment().padded().repeated().collect()
+) -> impl Parser<'src, &'src str, Vec<DynDef>, extra::Err<Rich<'src, char>>> {
+    choice((
+        generic_definition(),
+        definition(),
+    )).padded().repeated().collect()
 }
 
-fn assignment<'src>() -> impl Parser<'src, &'src str, ast::Assignment, extra::Err<Rich<'src, char>>>
+fn definition<'src>() -> impl Parser<'src, &'src str, DynDef, extra::Err<Rich<'src, char>>>
 {
     name()
         .then_ignore(just('=').padded())
         .then(expr().padded())
         .then_ignore(just(';').padded())
         .map(|r| {
-            let name = r.0;
-            let body = r.1;
-
-            ast::Assignment { name, body }
+            Box::new(ast::Assignment {
+                name: r.0,
+                body: r.1,
+            }) as DynDef
         })
         .labelled("definition")
+}
+
+fn generic_definition<'src>() -> impl Parser<'src, &'src str, DynDef, extra::Err<Rich<'src, char>>> {
+    name()
+        .then_ignore(just('$').padded())
+        .then(generic_arg_def().padded().separated_by(just(',').padded()).collect())
+        .then_ignore(just(';').padded())
+        .map(|r| {
+            Box::new(ast::GenericAssignment {
+                name: r.0,
+                args: r.1,
+            }) as DynDef
+        })
+        .labelled("generic definition")
+}
+
+fn generic_arg_def<'src>() -> impl Parser<'src, &'src str, (String, Vec<TypeRef>), extra::Err<Rich<'src, char>>> {
+    name()
+        .then(type_ref().padded().separated_by(just('&').padded()).collect())
+        .labelled("generic argument")
 }
 
 fn expr<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> {
@@ -112,8 +135,12 @@ fn float<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, 
         .map(|r| Box::new(r) as DynExpr)
 }
 
-fn type_ref<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
-    just(':').ignore_then(name()).then_ignore(whitespace())
+fn type_ref<'src>() -> impl Parser<'src, &'src str, TypeRef, extra::Err<Rich<'src, char>>> + Clone {
+    just(':').ignore_then(name().map(|r| TypeRef::Named(r)).or(inner_type_ref())).then_ignore(whitespace())
+}
+
+fn inner_type_ref<'src>() -> impl Parser<'src, &'src str, TypeRef, extra::Err<Rich<'src, char>>> + Clone {
+    todo() //TODO: functions and named type refs with generic args
 }
 
 fn name<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {

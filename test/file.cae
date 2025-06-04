@@ -1,6 +1,8 @@
 pi = 3;
 
-mulAndByPi = x :i32 ->
-             y :i32 ->
+mulAndByPi $ a :Display & :Clone,
+             b :Display;
+mulAndByPi = x :a ->
+             y :b ->
   mul (mul x y) pi
 ;
