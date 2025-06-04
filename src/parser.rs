@@ -28,7 +28,7 @@ fn definition<'src>() -> impl Parser<'src, &'src str, DynDef, extra::Err<Rich<'s
 fn generic_definition<'src>() -> impl Parser<'src, &'src str, DynDef, extra::Err<Rich<'src, char>>> {
     name()
         .then_ignore(just('$').padded())
-        .then(generic_arg_def().padded().separated_by(just(',').padded()).collect())
+        .then(generic_arg_def().padded().separated_by(just(',')).collect())
         .then_ignore(just(';').padded())
         .map(|r| {
             Box::new(ast::GenericAssignment {
@@ -41,7 +41,7 @@ fn generic_definition<'src>() -> impl Parser<'src, &'src str, DynDef, extra::Err
 
 fn generic_arg_def<'src>() -> impl Parser<'src, &'src str, (String, Vec<TypeRef>), extra::Err<Rich<'src, char>>> {
     name()
-        .then(type_ref().padded().separated_by(just('&').padded()).collect())
+        .then(type_ref().padded().separated_by(just('&')).collect())
         .labelled("generic argument")
 }
 
@@ -62,6 +62,7 @@ fn non_call_expr<'src>(
     choice((
         constant(),
         literal(),
+        just("<|").ignore_then(whitespace().or_not()).ignore_then(expr.clone()),
         expr.clone().delimited_by(
             just('(').then(whitespace().or_not()),
             whitespace().or_not().then(just(')')),
@@ -90,6 +91,22 @@ fn fn_def<'src>(
         })
         .labelled("function definition")
 }
+
+//TODO: add left-to-right pipes (more complicated than right-to-left pipes for some fucked-up
+//reason)
+// fn pipe<'src>(
+//     expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
+// ) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
+//     non_call_expr(expr.clone()).foldl(
+//         just("|>").padded().ignore_then(non_call_expr(expr)).repeated(),
+//         |left, right| {
+//             Box::new(ast::FnCall {
+//                 func: right,
+//                 arg: left,
+//             })
+//         }
+//     ).labelled("pipe")
+// }
 
 fn fn_call<'src>(
     expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
@@ -136,7 +153,7 @@ fn float<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, 
 }
 
 fn type_ref<'src>() -> impl Parser<'src, &'src str, TypeRef, extra::Err<Rich<'src, char>>> + Clone {
-    just(':').ignore_then(name().map(|r| TypeRef::Named(r)).or(inner_type_ref())).then_ignore(whitespace())
+    just(':').ignore_then(name().map(|r| TypeRef::Named(r)).or(inner_type_ref()))
 }
 
 fn inner_type_ref<'src>() -> impl Parser<'src, &'src str, TypeRef, extra::Err<Rich<'src, char>>> + Clone {

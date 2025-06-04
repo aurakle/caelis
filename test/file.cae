@@ -1,8 +1,8 @@
-pi = 3;
+pi = 3.14;
 
 mulAndByPi $ a :Display & :Clone,
              b :Display;
 mulAndByPi = x :a ->
              y :b ->
-  mul (mul x y) pi
+  mul x y |> mul <| pi
 ;
