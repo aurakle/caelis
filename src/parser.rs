@@ -1,4 +1,4 @@
-use chumsky::{input::ValueInput, prelude::*, recursive::Indirect, text::{ident, keyword}};
+use chumsky::{input::ValueInput, pratt::*, prelude::*, recursive::Indirect, text::*};
 
 use crate::ast::{self, DynDef, DynExpr, TypeRef};
 
@@ -47,10 +47,19 @@ fn generic_arg_def<'src>() -> impl Parser<'src, &'src str, (String, Vec<TypeRef>
 
 fn expr<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> {
     let mut expr = Recursive::declare();
-    expr.define(choice((
-        fn_def(expr.clone()),
-        fn_call(expr.clone()),
-        non_call_expr(expr.clone()),
+    expr.define(non_call_expr(expr.clone()).pratt((
+        infix(left(2), whitespace(), |func, _, arg, _| {
+            Box::new(ast::FnCall {
+                func,
+                arg,
+            }) as DynExpr
+        }),
+        infix(left(1), just("|>").padded(), |arg, _, func, _| {
+            Box::new(ast::FnCall {
+                func,
+                arg,
+            }) as DynExpr
+        }),
     )).labelled("expression"));
 
     expr
@@ -60,6 +69,7 @@ fn non_call_expr<'src>(
     expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
 ) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
     choice((
+        fn_def(expr.clone()),
         constant(),
         literal(),
         just("<|").ignore_then(whitespace().or_not()).ignore_then(expr.clone()),
@@ -92,42 +102,12 @@ fn fn_def<'src>(
         .labelled("function definition")
 }
 
-//TODO: add left-to-right pipes (more complicated than right-to-left pipes for some fucked-up
-//reason)
-// fn pipe<'src>(
-//     expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
-// ) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
-//     non_call_expr(expr.clone()).foldl(
-//         just("|>").padded().ignore_then(non_call_expr(expr)).repeated(),
-//         |left, right| {
-//             Box::new(ast::FnCall {
-//                 func: right,
-//                 arg: left,
-//             })
-//         }
-//     ).labelled("pipe")
-// }
-
-fn fn_call<'src>(
-    expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
-) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
-    non_call_expr(expr.clone()).foldl(
-        whitespace().ignore_then(non_call_expr(expr)).repeated(),
-        |left, right| {
-            Box::new(ast::FnCall {
-                func: left,
-                arg: right,
-            }) as DynExpr
-        },
-    ).labelled("function application")
-}
-
 fn constant<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
-    name().map(|r| Box::new(ast::Constant { name: r }) as DynExpr)
+    name().map(|name| Box::new(ast::Constant { name }) as DynExpr)
 }
 
 fn literal<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
-    //TODO: add support for other constants
+    //TODO: add support for other literals
     choice((
         float(),
         int(),
