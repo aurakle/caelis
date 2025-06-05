@@ -42,7 +42,7 @@ fn definition<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> 
                 body: r.1,
             }) as DynDef
         })
-        .labelled("symbol definition")
+        .labelled("name definition")
 }
 
 fn expr<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> {
@@ -123,7 +123,7 @@ fn if_then_else<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
 }
 
 fn constant<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
-    name().map(|name| Box::new(ast::Constant { name }) as DynExpr)
+    name().map(|name| Box::new(ast::Constant { name }) as DynExpr).labelled("name reference")
 }
 
 fn literal<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
@@ -131,7 +131,7 @@ fn literal<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> imp
     choice((
         float(),
         int(),
-    ))
+    )).labelled("literal")
 }
 
 fn int<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
@@ -143,7 +143,7 @@ fn float<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl 
 }
 
 fn type_ref<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, TypeRef, extra::Err<Rich<'src, Token<'src>>>> + Clone {
-    just(Token::Colon).ignore_then(name().map(|r| TypeRef::Named(r)).or(inner_type_ref()))
+    just(Token::Colon).ignore_then(name().map(|r| TypeRef::Named(r)).or(inner_type_ref())).labelled("type reference")
 }
 
 fn inner_type_ref<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, TypeRef, extra::Err<Rich<'src, Token<'src>>>> + Clone {
