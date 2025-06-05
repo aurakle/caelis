@@ -1,25 +1,25 @@
 use chumsky::{input::ValueInput, pratt::*, prelude::*, recursive::Indirect};
 
 use crate::{
-    ast::{self, DynDef, DynExpr, TypeRef},
+    ast::{self, Def, DynExpr, TypeRef},
     lexer::Token,
     util::Span,
 };
 
-pub(crate) fn create<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
-) -> impl Parser<'src, I, Vec<DynDef>, extra::Err<Rich<'src, Token<'src>>>> + Clone {
-    choice((generic_definition(), definition(expr()).map(|def| Box::new(def) as DynDef), type_definition()))
+pub fn create<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
+) -> impl Parser<'src, I, Vec<Def>, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+    choice((generic_definition(), definition(expr()).map(|def| Def::Value(def)), type_definition()))
         .repeated()
         .collect()
 }
 
 fn generic_definition<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
-) -> impl Parser<'src, I, DynDef, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+) -> impl Parser<'src, I, Def, extra::Err<Rich<'src, Token<'src>>>> + Clone {
     name()
         .then_ignore(just(Token::DollarSign))
         .then(generic_arg_def().separated_by(just(Token::Comma)).collect())
         .then_ignore(just(Token::Semicolon))
-        .map(|(name, args)| Box::new(ast::GenericDef { name, args }) as DynDef)
+        .map(|(name, args)| Def::Generic(ast::GenericDef { name, args }))
         .labelled("generic definition")
 }
 
@@ -42,12 +42,12 @@ fn definition<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
 }
 
 fn type_definition<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
-) -> impl Parser<'src, I, DynDef, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+) -> impl Parser<'src, I, Def, extra::Err<Rich<'src, Token<'src>>>> + Clone {
     name()
         .then_ignore(just(Token::Pipe))
         .then(field_def().separated_by(just(Token::Comma)).collect())
         .then_ignore(just(Token::Semicolon))
-        .map(|(name, fields)| Box::new(ast::TypeDef { name, fields }) as DynDef)
+        .map(|(name, fields)| Def::Type(ast::TypeDef { name, fields }))
         .labelled("type definition")
 }
 

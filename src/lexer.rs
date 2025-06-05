@@ -57,7 +57,7 @@ impl Display for Token<'_> {
     }
 }
 
-pub(crate) fn create<'src>(
+pub fn create<'src>(
 ) -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, extra::Err<Rich<'src, char>>> {
     choice((
         just("let").to(Token::Let),

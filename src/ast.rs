@@ -1,18 +1,19 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 
-pub type DynDef = Box<dyn Def>;
 pub type DynExpr = Box<dyn Expr>;
 
-pub trait Def: Debug {}
+#[derive(Debug, Clone)]
+pub enum Def {
+    Generic(GenericDef),
+    Value(ValueDef),
+    Type(TypeDef),
+}
 
 #[derive(Debug, Clone)]
 pub struct GenericDef {
     pub name: String,
-    pub args: HashMap<String, Vec<TypeRef>>,
+    pub args: Vec<(String, Vec<TypeRef>)>,
 }
-
-impl Def for GenericDef {}
 
 #[derive(Debug, Clone)]
 pub struct ValueDef {
@@ -20,15 +21,11 @@ pub struct ValueDef {
     pub body: DynExpr,
 }
 
-impl Def for ValueDef {}
-
 #[derive(Debug, Clone)]
 pub struct TypeDef {
     pub name: String,
-    pub fields: HashMap<String, TypeRef>,
+    pub fields: Vec<(String, TypeRef)>,
 }
-
-impl Def for TypeDef {}
 
 pub trait Expr: Debug {
     fn boxed(&self) -> DynExpr;
