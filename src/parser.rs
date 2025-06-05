@@ -1,35 +1,20 @@
-use chumsky::{input::ValueInput, pratt::*, prelude::*, recursive::Indirect, text::*};
+use chumsky::{input::ValueInput, pratt::*, prelude::*, recursive::Indirect};
 
-use crate::ast::{self, DynDef, DynExpr, TypeRef};
+use crate::{ast::{self, DynDef, DynExpr, TypeRef}, lexer::Token, util::Span};
 
-pub(crate) fn create<'src>(
-) -> impl Parser<'src, &'src str, Vec<DynDef>, extra::Err<Rich<'src, char>>> {
+pub(crate) fn create<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
+) -> impl Parser<'src, I, Vec<DynDef>, extra::Err<Rich<'src, Token<'src>>>> {
     choice((
         generic_definition(),
         definition(),
-    )).padded().repeated().collect()
+    )).repeated().collect()
 }
 
-fn definition<'src>() -> impl Parser<'src, &'src str, DynDef, extra::Err<Rich<'src, char>>>
-{
+fn generic_definition<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynDef, extra::Err<Rich<'src, Token<'src>>>> {
     name()
-        .then_ignore(just('=').padded())
-        .then(expr().padded())
-        .then_ignore(just(';').padded())
-        .map(|r| {
-            Box::new(ast::Assignment {
-                name: r.0,
-                body: r.1,
-            }) as DynDef
-        })
-        .labelled("definition")
-}
-
-fn generic_definition<'src>() -> impl Parser<'src, &'src str, DynDef, extra::Err<Rich<'src, char>>> {
-    name()
-        .then_ignore(just('$').padded())
-        .then(generic_arg_def().padded().separated_by(just(',')).collect())
-        .then_ignore(just(';').padded())
+        .then_ignore(just(Token::DollarSign))
+        .then(generic_arg_def().separated_by(just(Token::Comma)).collect())
+        .then_ignore(just(Token::Semicolon))
         .map(|r| {
             Box::new(ast::GenericAssignment {
                 name: r.0,
@@ -39,22 +24,37 @@ fn generic_definition<'src>() -> impl Parser<'src, &'src str, DynDef, extra::Err
         .labelled("generic definition")
 }
 
-fn generic_arg_def<'src>() -> impl Parser<'src, &'src str, (String, Vec<TypeRef>), extra::Err<Rich<'src, char>>> {
+fn generic_arg_def<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, (String, Vec<TypeRef>), extra::Err<Rich<'src, Token<'src>>>> {
     name()
-        .then(type_ref().padded().separated_by(just('&')).collect())
+        .then(type_ref().separated_by(just(Token::Ampersand)).collect())
         .labelled("generic argument")
 }
 
-fn expr<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> {
+fn definition<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynDef, extra::Err<Rich<'src, Token<'src>>>>
+{
+    name()
+        .then_ignore(just(Token::Equal))
+        .then(expr())
+        .then_ignore(just(Token::Semicolon))
+        .map(|r| {
+            Box::new(ast::Assignment {
+                name: r.0,
+                body: r.1,
+            }) as DynDef
+        })
+        .labelled("symbol definition")
+}
+
+fn expr<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> {
     let mut expr = Recursive::declare();
     expr.define(if_then_else(expr.clone()).or(non_call_expr(expr.clone()).pratt((
-        infix(left(2), whitespace(), |func, _, arg, _| {
+        postfix(2, non_call_expr(expr.clone()), |func, arg, _| {
             Box::new(ast::FnCall {
                 func,
                 arg,
             }) as DynExpr
         }),
-        infix(left(1), just("|>").padded(), |arg, _, func, _| {
+        infix(left(1), just(Token::PipeInto), |arg, _, func, _| {
             Box::new(ast::FnCall {
                 func,
                 arg,
@@ -65,30 +65,29 @@ fn expr<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, c
     expr
 }
 
-fn non_call_expr<'src>(
-    expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
-) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
+fn non_call_expr<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
+    expr: Recursive<Indirect<'src, 'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>>>,
+) -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
     choice((
         fn_def(expr.clone()),
         constant(),
         literal(),
-        just("<|").ignore_then(whitespace().or_not()).ignore_then(expr.clone()),
+        just(Token::PipeFrom).ignore_then(expr.clone()),
         expr.clone().delimited_by(
-            just('(').then(whitespace().or_not()),
-            whitespace().or_not().then(just(')')),
+            just(Token::OpenParen),
+            just(Token::CloseParen),
         ),
     ))
 }
 
-fn fn_def<'src>(
-    expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
-) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
+fn fn_def<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
+    expr: Recursive<Indirect<'src, 'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>>>,
+) -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
     name()
-        .then_ignore(whitespace())
         .then(type_ref())
-        .then_ignore(just("->").padded())
+        .then_ignore(just(Token::Arrow))
         .then(type_ref().or_not())
-        .then(expr.padded())
+        .then(expr)
         .map(|r| {
             let (((arg_name, arg_type), ret_type), body) = r;
 
@@ -102,14 +101,14 @@ fn fn_def<'src>(
         .labelled("function definition")
 }
 
-fn if_then_else<'src>(
-    expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
-) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
-    keyword("if").padded()
+fn if_then_else<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
+    expr: Recursive<Indirect<'src, 'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>>>,
+) -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+    just(Token::If)
         .ignore_then(expr.clone())
-        .then_ignore(keyword("then").padded())
+        .then_ignore(just(Token::Then))
         .then(expr.clone())
-        .then_ignore(keyword("else").padded())
+        .then_ignore(just(Token::Else))
         .then(expr)
         .map(|r| {
             let ((condition_expr, then_expr), else_expr) = r;
@@ -123,11 +122,11 @@ fn if_then_else<'src>(
         .labelled("branching expression")
 }
 
-fn constant<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
+fn constant<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
     name().map(|name| Box::new(ast::Constant { name }) as DynExpr)
 }
 
-fn literal<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
+fn literal<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
     //TODO: add support for other literals
     choice((
         float(),
@@ -135,54 +134,22 @@ fn literal<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src
     ))
 }
 
-fn int<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
-    text::int(10)
-        .padded()
-        .from_str::<i64>()
-        .unwrapped() // should never fail
-        .map(|r| Box::new(r) as DynExpr)
+fn int<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+    select! { Token::IntLiteral(i) => Box::new(i) as DynExpr }.labelled("int literal")
 }
 
-fn float<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
-    text::int(10)
-        .then(just('.')
-        .then(text::digits(10)).or_not())
-        .to_slice()
-        .from_str::<f64>()
-        .unwrapped() // should never fail
-        .map(|r| Box::new(r) as DynExpr)
+fn float<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+    select! { Token::FloatLiteral(f) => Box::new(f) as DynExpr }.labelled("float literal")
 }
 
-fn type_ref<'src>() -> impl Parser<'src, &'src str, TypeRef, extra::Err<Rich<'src, char>>> + Clone {
-    just(':').ignore_then(name().map(|r| TypeRef::Named(r)).or(inner_type_ref()))
+fn type_ref<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, TypeRef, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+    just(Token::Colon).ignore_then(name().map(|r| TypeRef::Named(r)).or(inner_type_ref()))
 }
 
-fn inner_type_ref<'src>() -> impl Parser<'src, &'src str, TypeRef, extra::Err<Rich<'src, char>>> + Clone {
+fn inner_type_ref<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, TypeRef, extra::Err<Rich<'src, Token<'src>>>> + Clone {
     todo() //TODO: functions and named type refs with generic args
 }
 
-fn name<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
-    ident().try_map(|r, span| {
-        let e = |keyword| Err(Rich::custom(span, format!("Symbol cannot be identified by keyword '{}'", keyword)));
-        match r {
-            //TODO: this sucks, so bad, but is necessary... how fix?
-            "if" => e("if"),
-            "then" => e("then"),
-            "else" => e("else"),
-            _ => Ok(r),
-        }
-    }).map(|r| String::from(r))
-}
-
-fn whitespace<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone
-{
-    indent().or(linebreak()).repeated().at_least(1).collect()
-}
-
-fn indent<'src>() -> impl Parser<'src, &'src str, char, extra::Err<Rich<'src, char>>> + Clone {
-    one_of(" 	")
-}
-
-fn linebreak<'src>() -> impl Parser<'src, &'src str, char, extra::Err<Rich<'src, char>>> + Clone {
-    one_of("\r\n")
+fn name<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>() -> impl Parser<'src, I, String, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+    select! { Token::Name(name) => name }.map(|r| r.to_string()).labelled("name")
 }

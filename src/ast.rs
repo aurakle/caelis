@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use serde::Serialize;
-
 pub type DynDef = Box<dyn TopLevelDef>;
 pub type DynExpr = Box<dyn Expr>;
 
