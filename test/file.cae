@@ -4,5 +4,5 @@ mulAndByPi $ a :Display & :Clone,
              b :Display;
 mulAndByPi = x :a ->
              y :b ->
-  mul x y |> div <| pi
+  if x then x else y
 ;

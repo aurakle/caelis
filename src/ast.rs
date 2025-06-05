@@ -100,6 +100,19 @@ impl Expr for FnCall {
 }
 
 #[derive(Debug, Clone)]
+pub struct IfThenElse {
+    pub condition_expr: DynExpr,
+    pub then_expr: DynExpr,
+    pub else_expr: DynExpr,
+}
+
+impl Expr for IfThenElse {
+    fn boxed(&self) -> DynExpr {
+        Box::new(self.clone()) as DynExpr
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum TypeRef {
     Named(String),
     // Function(),

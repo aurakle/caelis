@@ -47,7 +47,7 @@ fn generic_arg_def<'src>() -> impl Parser<'src, &'src str, (String, Vec<TypeRef>
 
 fn expr<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> {
     let mut expr = Recursive::declare();
-    expr.define(non_call_expr(expr.clone()).pratt((
+    expr.define(if_then_else(expr.clone()).or(non_call_expr(expr.clone()).pratt((
         infix(left(2), whitespace(), |func, _, arg, _| {
             Box::new(ast::FnCall {
                 func,
@@ -60,7 +60,7 @@ fn expr<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, c
                 arg,
             }) as DynExpr
         }),
-    )).labelled("expression"));
+    ))).labelled("expression"));
 
     expr
 }
@@ -102,6 +102,27 @@ fn fn_def<'src>(
         .labelled("function definition")
 }
 
+fn if_then_else<'src>(
+    expr: Recursive<Indirect<'src, 'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>>>,
+) -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
+    keyword("if").padded()
+        .ignore_then(expr.clone())
+        .then_ignore(keyword("then").padded())
+        .then(expr.clone())
+        .then_ignore(keyword("else").padded())
+        .then(expr)
+        .map(|r| {
+            let ((condition_expr, then_expr), else_expr) = r;
+
+            Box::new(ast::IfThenElse {
+                condition_expr,
+                then_expr,
+                else_expr,
+            }) as DynExpr
+        })
+        .labelled("branching expression")
+}
+
 fn constant<'src>() -> impl Parser<'src, &'src str, DynExpr, extra::Err<Rich<'src, char>>> + Clone {
     name().map(|name| Box::new(ast::Constant { name }) as DynExpr)
 }
@@ -141,7 +162,16 @@ fn inner_type_ref<'src>() -> impl Parser<'src, &'src str, TypeRef, extra::Err<Ri
 }
 
 fn name<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
-    ident().map(|r| String::from(r))
+    ident().try_map(|r, span| {
+        let e = |keyword| Err(Rich::custom(span, format!("Symbol cannot be identified by keyword '{}'", keyword)));
+        match r {
+            //TODO: this sucks, so bad, but is necessary... how fix?
+            "if" => e("if"),
+            "then" => e("then"),
+            "else" => e("else"),
+            _ => Ok(r),
+        }
+    }).map(|r| String::from(r))
 }
 
 fn whitespace<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone
