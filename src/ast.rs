@@ -1,30 +1,34 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-pub type DynDef = Box<dyn TopLevelDef>;
+pub type DynDef = Box<dyn Def>;
 pub type DynExpr = Box<dyn Expr>;
 
-pub trait TopLevelDef: Debug {
-}
+pub trait Def: Debug {}
 
 #[derive(Debug, Clone)]
-pub struct Assignment {
-    pub name: String,
-    pub body: DynExpr,
-}
-
-impl TopLevelDef for Assignment {
-}
-
-#[derive(Debug, Clone)]
-pub struct GenericAssignment {
+pub struct GenericDef {
     pub name: String,
     pub args: HashMap<String, Vec<TypeRef>>,
 }
 
-impl TopLevelDef for GenericAssignment {
+impl Def for GenericDef {}
 
+#[derive(Debug, Clone)]
+pub struct ValueDef {
+    pub name: String,
+    pub body: DynExpr,
 }
+
+impl Def for ValueDef {}
+
+#[derive(Debug, Clone)]
+pub struct TypeDef {
+    pub name: String,
+    pub fields: HashMap<String, TypeRef>,
+}
+
+impl Def for TypeDef {}
 
 pub trait Expr: Debug {
     fn boxed(&self) -> DynExpr;
@@ -72,26 +76,26 @@ impl Expr for Constant {
 }
 
 #[derive(Debug, Clone)]
-pub struct FnDef {
+pub struct Func {
     pub arg_name: String,
     pub arg_type: TypeRef,
     pub ret_type: Option<TypeRef>,
     pub body: DynExpr,
 }
 
-impl Expr for FnDef {
+impl Expr for Func {
     fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct FnCall {
+pub struct Call {
     pub func: DynExpr,
     pub arg: DynExpr,
 }
 
-impl Expr for FnCall {
+impl Expr for Call {
     fn boxed(&self) -> DynExpr {
         Box::new(self.clone()) as DynExpr
     }
@@ -112,6 +116,6 @@ impl Expr for IfThenElse {
 
 #[derive(Debug, Clone)]
 pub enum TypeRef {
-    Named(String),
-    // Function(),
+    Named(String, Vec<TypeRef>),
+    Function(Box<TypeRef>, Box<TypeRef>),
 }

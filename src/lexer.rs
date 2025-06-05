@@ -7,6 +7,7 @@ use crate::util::Spanned;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token<'src> {
     Let,
+    In,
     If,
     Then,
     Else,
@@ -15,6 +16,7 @@ pub enum Token<'src> {
     PipeFrom,
     DollarSign,
     Ampersand,
+    Pipe,
     Equal,
     Colon,
     Semicolon,
@@ -31,6 +33,7 @@ impl Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::Let => write!(f, "let"),
+            Token::In => write!(f, "in"),
             Token::If => write!(f, "if"),
             Token::Then => write!(f, "then"),
             Token::Else => write!(f, "else"),
@@ -39,6 +42,7 @@ impl Display for Token<'_> {
             Token::PipeFrom => write!(f, "<|"),
             Token::DollarSign => write!(f, "$"),
             Token::Ampersand => write!(f, "&"),
+            Token::Pipe => write!(f, "|"),
             Token::Equal => write!(f, "="),
             Token::Colon => write!(f, ":"),
             Token::Semicolon => write!(f, ";"),
@@ -53,9 +57,11 @@ impl Display for Token<'_> {
     }
 }
 
-pub(crate) fn create<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, extra::Err<Rich<'src, char>>> {
+pub(crate) fn create<'src>(
+) -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, extra::Err<Rich<'src, char>>> {
     choice((
         just("let").to(Token::Let),
+        just("in").to(Token::In),
         just("if").to(Token::If),
         just("then").to(Token::Then),
         just("else").to(Token::Else),
@@ -64,6 +70,7 @@ pub(crate) fn create<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'
         just("<|").to(Token::PipeFrom),
         just('$').to(Token::DollarSign),
         just('&').to(Token::Ampersand),
+        just('|').to(Token::Pipe),
         just('=').to(Token::Equal),
         just(':').to(Token::Colon),
         just(';').to(Token::Semicolon),
@@ -73,8 +80,7 @@ pub(crate) fn create<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'
         just(')').to(Token::CloseParen),
         ident().map(Token::Name),
         int(10)
-            .then(just('.')
-                .then(text::digits(10)).or_not())
+            .then(just('.').then(text::digits(10)).or_not())
             .to_slice()
             .from_str()
             .unwrapped()
@@ -84,5 +90,15 @@ pub(crate) fn create<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'
             .from_str()
             .unwrapped()
             .map(Token::IntLiteral),
-    )).map_with(|token, info| (token, info.span())).padded().repeated().collect()
+    ))
+    .map_with(|token, info| (token, info.span()))
+    .padded_by(
+        just('#')
+            .then(any().and_is(just('\n').not()).repeated())
+            .padded()
+            .repeated(),
+    )
+    .padded()
+    .repeated()
+    .collect()
 }

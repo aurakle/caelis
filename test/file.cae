@@ -1,8 +1,8 @@
-pi = 3.14;
-
-mulAndByPi $ a :Display & :Clone,
-             b :Display;
-mulAndByPi = x :a ->
-             y :b ->
-  mul x y |> div <| pi
+map $ a, b;
+map = f :(a -> b) ->
+      l :(List a) -> :(List b)
+  f l # wrong impl but whatever, have a comment!
 ;
+
+List $ a;
+List | element :a, next :(List a);
