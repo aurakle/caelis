@@ -9,7 +9,8 @@ mod lexer;
 mod parser;
 mod util;
 
-//TODO: this needs some clean-up and also we need to be able to resolve imports!!! that's important
+//TODO: this needs some clean-up ~~and also we need to be able to resolve imports!!! that's
+//important~~ no imports are pain
 fn main() {
     let filename = env::args().nth(1).expect("Expected file argument");
     let src = fs::read_to_string(&filename).expect("Failed to read file");

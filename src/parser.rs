@@ -8,7 +8,7 @@ use crate::{
 
 pub(crate) fn create<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
 ) -> impl Parser<'src, I, Vec<DynDef>, extra::Err<Rich<'src, Token<'src>>>> + Clone {
-    choice((generic_definition(), definition(), type_definition()))
+    choice((generic_definition(), definition(expr()).map(|def| Box::new(def) as DynDef), type_definition()))
         .repeated()
         .collect()
 }
@@ -31,12 +31,13 @@ fn generic_arg_def<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
 }
 
 fn definition<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
-) -> impl Parser<'src, I, DynDef, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+    expr: Recursive<Indirect<'src, 'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>>>,
+) -> impl Parser<'src, I, ast::ValueDef, extra::Err<Rich<'src, Token<'src>>>> + Clone {
     name()
         .then_ignore(just(Token::Equal))
-        .then(expr())
+        .then(expr)
         .then_ignore(just(Token::Semicolon))
-        .map(|(name, body)| Box::new(ast::ValueDef { name, body }) as DynDef)
+        .map(|(name, body)| ast::ValueDef { name, body })
         .labelled("value definition")
 }
 
@@ -56,10 +57,11 @@ fn field_def<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
 }
 
 fn expr<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
-) -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+) -> Recursive<Indirect<'src, 'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>>> {
     let mut expr = Recursive::declare();
     expr.define(
         if_then_else(expr.clone())
+            .or(let_in(expr.clone()))
             .or(non_call_expr(expr.clone()).pratt((
                 postfix(2, non_call_expr(expr.clone()), |func, arg, _| {
                     Box::new(ast::Call { func, arg }) as DynExpr
@@ -123,6 +125,22 @@ fn if_then_else<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
             }) as DynExpr
         })
         .labelled("branching expression")
+}
+
+fn let_in<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(
+    expr: Recursive<Indirect<'src, 'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>>>,
+) -> impl Parser<'src, I, DynExpr, extra::Err<Rich<'src, Token<'src>>>> + Clone {
+    just(Token::Let)
+        .ignore_then(definition(expr.clone()).repeated().collect())
+        .then_ignore(just(Token::In))
+        .then(expr)
+        .map(|(defs, body)| {
+            Box::new(ast::LetIn {
+                defs,
+                body,
+            }) as DynExpr
+        })
+        .labelled("let expression")
 }
 
 fn constant<'src, I: ValueInput<'src, Token = Token<'src>, Span = Span>>(

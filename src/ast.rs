@@ -115,6 +115,18 @@ impl Expr for IfThenElse {
 }
 
 #[derive(Debug, Clone)]
+pub struct LetIn {
+    pub defs: Vec<ValueDef>,
+    pub body: DynExpr,
+}
+
+impl Expr for LetIn {
+    fn boxed(&self) -> DynExpr {
+        Box::new(self.clone()) as DynExpr
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum TypeRef {
     Named(String, Vec<TypeRef>),
     Function(Box<TypeRef>, Box<TypeRef>),

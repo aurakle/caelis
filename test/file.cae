@@ -1,7 +1,9 @@
 map $ a, b;
 map = f :(a -> b) ->
       l :(List a) -> :(List b)
-  f l # wrong impl but whatever, have a comment!
+  let
+    v = 5;
+  in f l # wrong impl but whatever, have a comment!
 ;
 
 List $ a;
