@@ -54,15 +54,31 @@ impl<'ctx> DeclInfo<'ctx> {
     }
 
     pub fn populate<'src>(&mut self, ast: &'src Vec<Def>) {
+        let mut generic_defs = HashMap::new();
+
+        for def in ast.iter().filter_map(|def| match def {
+            Def::Generic(generic_def) => Some(generic_def),
+            _ => None,
+        }) {
+            let def = def.clone();
+            generic_defs.insert(def.name, def.args);
+        }
+
         for def in ast.iter().filter_map(|def| match def {
             Def::Type(type_def) => Some(type_def),
             _ => None,
         }) {
             let def = def.clone();
             //TODO: no guarantee of unique names
-            //also no handling of generics
             self.types
-                .push(Box::new(Struct::new(self.context, def.name, def.fields)) as DynType<'ctx>)
+                .push(Box::new(Struct::new(self.context, def.name.clone(), def.fields, generic_defs.get(&def.name))) as DynType<'ctx>)
+        }
+
+        for def in ast.iter().filter_map(|def| match def {
+            Def::Value(value_def) => Some(value_def),
+            _ => None,
+        }) {
+            //TODO: calculate symbols
         }
     }
 }
