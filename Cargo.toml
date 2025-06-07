@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.98"
+arcstr = { version = "1.2.0", features = ["substr-usize-indices"] }
 ariadne = { version = "0.5.1", features = ["auto-color"] }
 chumsky = { version = "0.10.1", features = ["memoization", "pratt"] }
 clap = { version = "4.5.39", features = ["derive"] }

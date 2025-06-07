@@ -1,14 +1,12 @@
-use anyhow::{anyhow, bail, Result};
 use inkwell::{
     context::Context,
-    llvm_sys::prelude::LLVMTypeRef,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, StructType},
+    types::{BasicType, BasicTypeEnum, StructType},
 };
 use std::fmt::Debug;
 
 use crate::ast::TypeRef;
 
-use super::{CodeGen, DeclInfo};
+use super::CodeGen;
 
 pub type DynType<'ctx> = Box<dyn Type<'ctx> + 'ctx>;
 

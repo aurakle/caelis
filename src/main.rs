@@ -1,33 +1,27 @@
 use std::{env, fs};
 
-use ariadne::{sources, Color, Label, Report, ReportKind, Source};
-use chumsky::{input::Input, Parser};
+use arcstr::ArcStr;
+use ariadne::{sources, Color, Label, Report, ReportKind};
+use chumsky::Parser;
 
 mod ast;
 mod compiler;
 mod lexer;
 mod parser;
-mod util;
 
 //TODO: this needs some clean-up ~~and also we need to be able to resolve imports!!! that's
 //important~~ no imports are pain
 fn main() {
     let filename = env::args().nth(1).expect("Expected file argument");
     let src = fs::read_to_string(&filename).expect("Failed to read file");
+    let arcstr = ArcStr::from(src.as_str());
 
-    let (tokens, mut errs) = lexer::create().parse(src.as_str()).into_output_errors();
+    let (tokens, errs) = lexer::tokenize(&arcstr);
 
     let parse_errs = if let Some(tokens) = &tokens {
-        let (ast, parse_errs) = parser::create()
-            .map_with(|ast, e| (ast, e.span()))
-            .parse(
-                tokens
-                    .as_slice()
-                    .map((src.len()..src.len()).into(), |(t, s)| (t, s)),
-            )
-            .into_output_errors();
+        let (ast, parse_errs) = parser::create().parse(tokens.as_slice()).into_output_errors();
 
-        if let Some((defs, file_span)) = ast.filter(|_| errs.len() + parse_errs.len() == 0) {
+        if let Some(defs) = ast.filter(|_| errs.len() + parse_errs.len() == 0) {
             println!("{:#?}", defs)
         }
 
@@ -41,7 +35,7 @@ fn main() {
         .chain(
             parse_errs
                 .into_iter()
-                .map(|e| e.map_token(|tok| tok.to_string())),
+                .map(|e| e.map_token(|tok| format!("{:#?}", tok.kind))),
         )
         .for_each(|e| {
             Report::build(ReportKind::Error, (filename.clone(), e.span().into_range()))

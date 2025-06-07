@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use inkwell::{builder::Builder, context::Context, module::Module};
-use types::{DynType, PrimitiveType, Struct, Type, TypeLink};
+use types::{DynType, Struct, TypeLink};
 use values::Value;
 
 use crate::ast::{Def, TypeRef};

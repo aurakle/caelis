@@ -10,6 +10,7 @@ in pkgs.mkShell {
 
   buildInputs = libs ++ (with pkgs; [
     cargo
+    cargo-expand
     rustc
     gcc
     rustfmt
