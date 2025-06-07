@@ -44,7 +44,12 @@ pub enum StructFields {
 }
 
 impl<'ctx> Struct<'ctx> {
-    pub fn new(context: &'ctx Context, name: String, fields: Vec<(String, TypeRef)>, generic_args: Option<&Vec<(String, Vec<TypeRef>)>>) -> Self {
+    pub fn new(
+        context: &'ctx Context,
+        name: String,
+        fields: Vec<(String, TypeRef)>,
+        generic_args: Option<&Vec<(String, Vec<TypeRef>)>>,
+    ) -> Self {
         //TODO: support generics
         Self {
             name: name.clone(),

@@ -1,7 +1,11 @@
 use std::fmt::Display;
 
 use arcstr::{ArcStr, Substr};
-use chumsky::{input::{StrInput, ValueInput}, prelude::*, text::*};
+use chumsky::{
+    input::{StrInput, ValueInput},
+    prelude::*,
+    text::*,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
@@ -67,8 +71,12 @@ pub fn tokenize<'src>(text: &'src ArcStr) -> (Option<Vec<Token>>, Vec<Rich<'src,
 }
 
 // this only exists for coercion and should only ever be used by `tokenize`
-fn create<'src, I: ValueInput<'src, Token = char, Span = SimpleSpan> + StrInput<'src, Slice = &'src str, Span = SimpleSpan>>(
-    text: &'src ArcStr
+fn create<
+    'src,
+    I: ValueInput<'src, Token = char, Span = SimpleSpan>
+        + StrInput<'src, Slice = &'src str, Span = SimpleSpan>,
+>(
+    text: &'src ArcStr,
 ) -> impl Parser<'src, I, Vec<Token>, extra::Err<Rich<'src, char>>> {
     choice((
         just("let").to(TokenKind::Let),
@@ -90,11 +98,17 @@ fn create<'src, I: ValueInput<'src, Token = char, Span = SimpleSpan> + StrInput<
         just('(').to(TokenKind::OpenParen),
         just(')').to(TokenKind::CloseParen),
         ident().to(TokenKind::Name),
-        int(10).then(just('.').then(text::digits(10)).or_not()).to(TokenKind::Float),
+        int(10)
+            .then(just('.').then(text::digits(10)).or_not())
+            .to(TokenKind::Float),
         int(10).to(TokenKind::Int),
     ))
     .map_with(|kind, info| {
-        let SimpleSpan { start, end, context: _ } = info.span();
+        let SimpleSpan {
+            start,
+            end,
+            context: _,
+        } = info.span();
 
         Token {
             kind,

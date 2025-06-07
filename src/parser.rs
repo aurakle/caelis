@@ -1,4 +1,4 @@
-use chumsky::{prelude::*, pratt::*};
+use chumsky::{pratt::*, prelude::*};
 
 use crate::ast::{self, Def, DynExpr, TypeRef};
 
@@ -18,12 +18,24 @@ macro_rules! parser {
 
 macro_rules! rec_parser {
     ($name:ident, $ret:ty, $this:ident => $code:expr) => {
-        parser_shell!($name, chumsky::prelude::Recursive<chumsky::recursive::Indirect<'src, 'src, I, $ret, chumsky::extra::Err<chumsky::prelude::Rich<'src, crate::lexer::Token>>>>, {
-            let mut $this = chumsky::prelude::Recursive::declare();
-            $this.define($code);
+        parser_shell!(
+            $name,
+            chumsky::prelude::Recursive<
+                chumsky::recursive::Indirect<
+                    'src,
+                    'src,
+                    I,
+                    $ret,
+                    chumsky::extra::Err<chumsky::prelude::Rich<'src, crate::lexer::Token>>,
+                >,
+            >,
+            {
+                let mut $this = chumsky::prelude::Recursive::declare();
+                $this.define($code);
 
-            $this
-        });
+                $this
+            }
+        );
     };
 }
 
@@ -206,9 +218,14 @@ parser!(
     number,
     DynExpr,
     choice((
-        token!(Float).map(|s| Box::new(s.parse::<f64>().unwrap()) as DynExpr).labelled("float literal"),
-        token!(Int).map(|s| Box::new(s.parse::<i64>().unwrap()) as DynExpr).labelled("int literal"),
-    )).labelled("number literal")
+        token!(Float)
+            .map(|s| Box::new(s.parse::<f64>().unwrap()) as DynExpr)
+            .labelled("float literal"),
+        token!(Int)
+            .map(|s| Box::new(s.parse::<i64>().unwrap()) as DynExpr)
+            .labelled("int literal"),
+    ))
+    .labelled("number literal")
 );
 
 parser!(
@@ -251,7 +268,5 @@ rec_child_parser!(
 parser!(
     name,
     String,
-    token!(Name)
-        .map(|s| s.to_string())
-        .labelled("name")
+    token!(Name).map(|s| s.to_string()).labelled("name")
 );

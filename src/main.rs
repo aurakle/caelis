@@ -19,7 +19,9 @@ fn main() {
     let (tokens, errs) = lexer::tokenize(&arcstr);
 
     let parse_errs = if let Some(tokens) = &tokens {
-        let (ast, parse_errs) = parser::create().parse(tokens.as_slice()).into_output_errors();
+        let (ast, parse_errs) = parser::create()
+            .parse(tokens.as_slice())
+            .into_output_errors();
 
         if let Some(defs) = ast.filter(|_| errs.len() + parse_errs.len() == 0) {
             println!("{:#?}", defs)

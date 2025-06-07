@@ -70,8 +70,12 @@ impl<'ctx> DeclInfo<'ctx> {
         }) {
             let def = def.clone();
             //TODO: no guarantee of unique names
-            self.types
-                .push(Box::new(Struct::new(self.context, def.name.clone(), def.fields, generic_defs.get(&def.name))) as DynType<'ctx>)
+            self.types.push(Box::new(Struct::new(
+                self.context,
+                def.name.clone(),
+                def.fields,
+                generic_defs.get(&def.name),
+            )) as DynType<'ctx>)
         }
 
         for def in ast.iter().filter_map(|def| match def {
