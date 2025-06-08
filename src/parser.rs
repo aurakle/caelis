@@ -1,5 +1,5 @@
-use chumsky::{pratt::*, prelude::*};
 use arcstr::Substr;
+use chumsky::{pratt::*, prelude::*};
 
 use crate::ast::{self, Ast, Def, Expr, TypeRef};
 
@@ -87,7 +87,13 @@ parser!(
         .then_ignore(token!(DollarSign))
         .then(generic_arg_def().separated_by(token!(Comma)).collect())
         .then(token!(Semicolon))
-        .map(|((name, args), end_span)| ast::GenericDef { text: end_span.parent().substr(name.text().range().start..end_span.range().end), name, args })
+        .map(|((name, args), end_span)| ast::GenericDef {
+            text: end_span
+                .parent()
+                .substr(name.text().range().start..end_span.range().end),
+            name,
+            args
+        })
         .labelled("generic definition")
 );
 
@@ -117,7 +123,13 @@ parser!(
         .then_ignore(token!(Pipe))
         .then(field_def().separated_by(token!(Comma)).collect())
         .then(token!(Semicolon))
-        .map(|((name, fields), end_span)| ast::TypeDef { text: end_span.parent().substr(name.text().range().start..end_span.range().end), name, fields })
+        .map(|((name, fields), end_span)| ast::TypeDef {
+            text: end_span
+                .parent()
+                .substr(name.text().range().start..end_span.range().end),
+            name,
+            fields
+        })
         .labelled("type definition")
 );
 
