@@ -1,6 +1,7 @@
 use chumsky::{pratt::*, prelude::*};
+use arcstr::Substr;
 
-use crate::ast::{self, Def, DynExpr, TypeRef};
+use crate::ast::{self, Ast, Def, Expr, TypeRef};
 
 macro_rules! parser_shell {
     ($v:vis $name:ident, $ret:ty, $code:expr $(, $($arg:ident: $ty:ty),+)?) => {
@@ -60,30 +61,39 @@ parser!(
     pub create,
     Vec<Def>,
     choice((
-        generic_definition(),
+        generic_definition()
+            .map(|def| Def::Generic(def)),
         definition(expr())
             .map(|def| Def::Value(def)),
         type_definition()
+            .map(|def| Def::Type(def)),
     ))
     .repeated()
     .collect()
+    //TODO: I'm tired
+    // .map(|defs: Vec<Def>| {
+    //     ast::Root {
+    //         text: defs.first().map(|f| f.text().range().start..defs.last().unwrap().text().range().end).unwrap_or(0..0),
+    //         defs,
+    //     }
+    // })
     .labelled("definition")
 );
 
 parser!(
     generic_definition,
-    Def,
+    ast::GenericDef,
     name()
         .then_ignore(token!(DollarSign))
         .then(generic_arg_def().separated_by(token!(Comma)).collect())
-        .then_ignore(token!(Semicolon))
-        .map(|(name, args)| Def::Generic(ast::GenericDef { name, args }))
+        .then(token!(Semicolon))
+        .map(|((name, args), end_span)| ast::GenericDef { text: end_span.parent().substr(name.text().range().start..end_span.range().end), name, args })
         .labelled("generic definition")
 );
 
 parser!(
     generic_arg_def,
-    (String, Vec<TypeRef>),
+    (ast::Name, Vec<TypeRef>),
     name()
         .then(type_ref().separated_by(token!(Ampersand)).collect())
         .labelled("generic type argument")
@@ -92,42 +102,43 @@ parser!(
 rec_child_parser!(
     definition,
     ast::ValueDef,
-    expr: DynExpr => name()
+    expr: Box<Expr> => name()
         .then_ignore(token!(Equal))
         .then(expr)
-        .then_ignore(token!(Semicolon))
-        .map(|(name, body)| ast::ValueDef { name, body })
+        .then(token!(Semicolon))
+        .map(|((name, body), end_span)| ast::ValueDef { text: end_span.parent().substr(name.text().range().start..end_span.range().end), name, body: *body })
         .labelled("value definition")
 );
 
 parser!(
     type_definition,
-    Def,
+    ast::TypeDef,
     name()
         .then_ignore(token!(Pipe))
         .then(field_def().separated_by(token!(Comma)).collect())
-        .then_ignore(token!(Semicolon))
-        .map(|(name, fields)| Def::Type(ast::TypeDef { name, fields }))
+        .then(token!(Semicolon))
+        .map(|((name, fields), end_span)| ast::TypeDef { text: end_span.parent().substr(name.text().range().start..end_span.range().end), name, fields })
         .labelled("type definition")
 );
 
 parser!(
     field_def,
-    (String, TypeRef),
+    (ast::Name, TypeRef),
     name().then(type_ref()).labelled("field definition")
 );
 
 rec_parser!(
     expr,
-    DynExpr,
+    Box<Expr>,
     this => if_then_else(this.clone())
         .or(let_in(this.clone()))
+        .map(|expr| Box::new(expr))
         .or(non_call_expr(this.clone()).pratt((
-            postfix(2, non_call_expr(this.clone()), |func, arg, _| {
-                Box::new(ast::Call { func, arg }) as DynExpr
+            postfix(2, non_call_expr(this.clone()), |func: Box<Expr>, arg: Box<Expr>, _| {
+                Box::new(Expr::Call(func.text().parent().substr(func.text().range().start..arg.text().range().end), func, arg))
             }),
-            infix(left(1), token!(PipeInto), |arg, _, func, _| {
-                Box::new(ast::Call { func, arg }) as DynExpr
+            infix(left(1), token!(PipeInto), |arg: Box<Expr>, _, func: Box<Expr>, _| {
+                Box::new(Expr::Call(arg.text().parent().substr(arg.text().range().start..func.text().range().end), arg, func))
             }),
         )))
         .labelled("expression")
@@ -135,94 +146,100 @@ rec_parser!(
 
 rec_child_parser!(
     non_call_expr,
-    DynExpr,
-    expr: DynExpr => choice((
+    Box<Expr>,
+    expr: Box<Expr> => choice((
         fn_def(expr.clone()),
         constant(),
         literal(),
+    )).map(|expr| Box::new(expr))
+    .or(choice((
         token!(PipeFrom).ignore_then(expr.clone()),
         expr.clone().delimited_by(token!(OpenParen), token!(CloseParen)),
-    ))
+    )))
 );
 
 rec_child_parser!(
     fn_def,
-    DynExpr,
-    expr: DynExpr => name()
+    Expr,
+    expr: Box<Expr> => name()
         .then(type_ref())
         .then_ignore(token!(Arrow))
         .then(type_ref().or_not())
         .then(expr)
         .map(|(((arg_name, arg_type), ret_type), body)| {
-            Box::new(ast::Func {
+            Expr::Func(
+                arg_name.text().parent().substr(arg_name.text().range().start..body.text().range().end),
                 arg_name,
                 arg_type,
                 ret_type,
                 body,
-            }) as DynExpr
+            )
         })
         .labelled("function definition")
 );
 
 rec_child_parser!(
     if_then_else,
-    DynExpr,
-    expr: DynExpr => token!(If)
-        .ignore_then(expr.clone())
+    Expr,
+    expr: Box<Expr> => token!(If)
+        .then(expr.clone())
         .then_ignore(token!(Then))
         .then(expr.clone())
         .then_ignore(token!(Else))
         .then(expr)
-        .map(|((condition_expr, then_expr), else_expr)| {
-            Box::new(ast::IfThenElse {
+        .map(|(((start_span, condition_expr), then_expr), else_expr)| {
+            Expr::IfThenElse(
+                start_span.parent().substr(start_span.range().start..else_expr.text().range().end),
                 condition_expr,
                 then_expr,
                 else_expr,
-            }) as DynExpr
+            )
         })
         .labelled("branching expression")
 );
 
 rec_child_parser!(
     let_in,
-    DynExpr,
-    expr: DynExpr => token!(Let)
-        .ignore_then(definition(expr.clone()).repeated().collect())
+    Expr,
+    expr: Box<Expr> => token!(Let)
+        .then(definition(expr.clone()).repeated().collect())
         .then_ignore(token!(In))
         .then(expr)
-        .map(|(defs, body)| {
-            Box::new(ast::LetIn {
+        .map(|((start_span, defs), body)| {
+            Expr::LetIn(
+                start_span.parent().substr(start_span.range().start..body.text().range().end),
                 defs,
                 body,
-            }) as DynExpr
+            )
         })
         .labelled("let expression")
 );
 
+//TODO: probably don't need this
 parser!(
     constant,
-    DynExpr,
+    Expr,
     name()
-        .map(|name| Box::new(ast::Constant { name }) as DynExpr)
+        .map(|name| Expr::SymbolRef(name.text().clone(), name))
         .labelled("name reference")
 );
 
 parser!(
     literal,
-    DynExpr,
+    Expr,
     //TODO: add support for other literals
     number().labelled("literal")
 );
 
 parser!(
     number,
-    DynExpr,
+    Expr,
     choice((
         token!(Float)
-            .map(|s| Box::new(s.parse::<f64>().unwrap()) as DynExpr)
+            .map(|s| Expr::Float(s.clone(), s.parse().unwrap()))
             .labelled("float literal"),
         token!(Int)
-            .map(|s| Box::new(s.parse::<i64>().unwrap()) as DynExpr)
+            .map(|s| Expr::Int(s.clone(), s.parse().unwrap()))
             .labelled("int literal"),
     ))
     .labelled("number literal")
@@ -234,8 +251,10 @@ parser!(
     token!(Colon)
         .ignore_then(
             name()
-                .map(|r| TypeRef::Named(r, Vec::new()))
-                .or(inner_type_ref().delimited_by(token!(OpenParen), token!(CloseParen))),
+                .map(|r| TypeRef::Named(r.text().clone(), r, Vec::new()))
+                .or(token!(OpenParen)
+                    .ignore_then(inner_type_ref())
+                    .then_ignore(token!(CloseParen)))
         )
         .labelled("type reference")
 );
@@ -246,7 +265,7 @@ rec_parser!(
     this => non_fn_inner_type_ref(this.clone()).pratt(infix(
         right(1),
         token!(Arrow),
-        |arg, _, ret, _| TypeRef::Function(Box::new(arg), Box::new(ret)),
+        |arg: TypeRef, _, ret: TypeRef, _| TypeRef::Function(arg.text().parent().substr(arg.text().range().start..ret.text().range().end), Box::new(arg), Box::new(ret)),
     ))
 );
 
@@ -257,7 +276,14 @@ rec_child_parser!(
         choice((
             name()
                 .then(this.clone().repeated().collect())
-                .map(|(name, type_args)| TypeRef::Named(name, type_args)),
+                .map(|(name, type_args)| {
+                    let type_args: Vec<TypeRef> = type_args;
+                    let end = type_args.last()
+                        .map(|t| t.text().range().end)
+                        .unwrap_or(name.text().range().end);
+
+                    TypeRef::Named(name.text().parent().substr(name.text().range().start..end), name, type_args)
+                }),
             type_ref
                 .clone()
                 .delimited_by(token!(OpenParen), token!(CloseParen)),
@@ -267,6 +293,6 @@ rec_child_parser!(
 
 parser!(
     name,
-    String,
-    token!(Name).map(|s| s.to_string()).labelled("name")
+    ast::Name,
+    token!(Name).map(ast::Name).labelled("name")
 );

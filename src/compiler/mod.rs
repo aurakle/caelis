@@ -5,7 +5,7 @@ use inkwell::{builder::Builder, context::Context, module::Module};
 use types::{DynType, Struct, TypeLink};
 use values::Value;
 
-use crate::ast::{Def, TypeRef};
+use crate::ast::{Ast, Def, Name, TypeRef};
 
 mod types;
 mod values;
@@ -33,7 +33,7 @@ impl<'ctx> CodeGen<'ctx> {
 struct DeclInfo<'ctx> {
     context: &'ctx Context,
     types: Vec<DynType<'ctx>>,
-    values: HashMap<String, Value<'ctx>>,
+    values: HashMap<Name, Value<'ctx>>,
 }
 
 impl<'ctx> DeclInfo<'ctx> {
@@ -49,7 +49,7 @@ impl<'ctx> DeclInfo<'ctx> {
         todo!() //TODO: PAIN
     }
 
-    fn init_values() -> HashMap<String, Value<'ctx>> {
+    fn init_values() -> HashMap<Name, Value<'ctx>> {
         todo!() //TODO: PAIN
     }
 

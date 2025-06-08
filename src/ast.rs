@@ -1,6 +1,24 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 
-pub type DynExpr = Box<dyn Expr>;
+use arcstr::Substr;
+
+pub trait Ast: Debug + Clone {
+    fn text(&self) -> &Substr;
+}
+
+#[derive(Debug, Clone)]
+pub struct Root {
+    pub text: Substr,
+    // pub imports: Vec<Import>,
+    pub defs: Vec<Def>,
+}
+
+impl Ast for Root {
+    fn text(&self) -> &Substr {
+        &self.text
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Def {
@@ -9,122 +27,82 @@ pub enum Def {
     Type(TypeDef),
 }
 
+impl Ast for Def {
+    fn text(&self) -> &Substr {
+        match self {
+            Def::Generic(generic_def) => &generic_def.text,
+            Def::Value(value_def) => &value_def.text,
+            Def::Type(type_def) => &type_def.text,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct GenericDef {
-    pub name: String,
-    pub args: Vec<(String, Vec<TypeRef>)>,
+    pub text: Substr,
+    pub name: Name,
+    pub args: Vec<(Name, Vec<TypeRef>)>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ValueDef {
-    pub name: String,
-    pub body: DynExpr,
+    pub text: Substr,
+    pub name: Name,
+    pub body: Expr,
 }
 
 #[derive(Debug, Clone)]
 pub struct TypeDef {
-    pub name: String,
-    pub fields: Vec<(String, TypeRef)>,
+    pub text: Substr,
+    pub name: Name,
+    pub fields: Vec<(Name, TypeRef)>,
 }
 
-pub trait Expr: Debug {
-    fn boxed(&self) -> DynExpr;
-}
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct Name(pub Substr);
 
-impl Clone for DynExpr {
-    fn clone(&self) -> Self {
-        self.boxed()
-    }
-}
-
-impl Expr for i64 {
-    fn boxed(&self) -> DynExpr {
-        Box::new(self.clone()) as DynExpr
-    }
-}
-
-impl Expr for f64 {
-    fn boxed(&self) -> DynExpr {
-        Box::new(self.clone()) as DynExpr
-    }
-}
-
-impl Expr for char {
-    fn boxed(&self) -> DynExpr {
-        Box::new(self.clone()) as DynExpr
-    }
-}
-
-impl Expr for String {
-    fn boxed(&self) -> DynExpr {
-        Box::new(self.clone()) as DynExpr
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Constant {
-    pub name: String,
-}
-
-impl Expr for Constant {
-    fn boxed(&self) -> DynExpr {
-        Box::new(self.clone()) as DynExpr
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Func {
-    pub arg_name: String,
-    pub arg_type: TypeRef,
-    pub ret_type: Option<TypeRef>,
-    pub body: DynExpr,
-}
-
-impl Expr for Func {
-    fn boxed(&self) -> DynExpr {
-        Box::new(self.clone()) as DynExpr
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Call {
-    pub func: DynExpr,
-    pub arg: DynExpr,
-}
-
-impl Expr for Call {
-    fn boxed(&self) -> DynExpr {
-        Box::new(self.clone()) as DynExpr
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct IfThenElse {
-    pub condition_expr: DynExpr,
-    pub then_expr: DynExpr,
-    pub else_expr: DynExpr,
-}
-
-impl Expr for IfThenElse {
-    fn boxed(&self) -> DynExpr {
-        Box::new(self.clone()) as DynExpr
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LetIn {
-    pub defs: Vec<ValueDef>,
-    pub body: DynExpr,
-}
-
-impl Expr for LetIn {
-    fn boxed(&self) -> DynExpr {
-        Box::new(self.clone()) as DynExpr
+impl Ast for Name {
+    fn text(&self) -> &Substr {
+        &self.0
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum TypeRef {
-    Named(String, Vec<TypeRef>),
-    Function(Box<TypeRef>, Box<TypeRef>),
+    Named(Substr, Name, Vec<TypeRef>),
+    Function(Substr, Box<TypeRef>, Box<TypeRef>),
+}
+
+impl Ast for TypeRef {
+    fn text(&self) -> &Substr {
+        match self {
+            TypeRef::Named(substr, _, _) => substr,
+            TypeRef::Function(substr, _, _) => substr,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Expr {
+    SymbolRef(Substr, Name),
+    Func(Substr, Name, TypeRef, Option<TypeRef>, Box<Expr>),
+    Call(Substr, Box<Expr>, Box<Expr>),
+    IfThenElse(Substr, Box<Expr>, Box<Expr>, Box<Expr>),
+    LetIn(Substr, Vec<ValueDef>, Box<Expr>),
+    Float(Substr, f64),
+    Int(Substr, f64),
+}
+
+impl Ast for Expr {
+    fn text(&self) -> &Substr {
+        match self {
+            Expr::SymbolRef(substr, _) => substr,
+            Expr::Func(substr, _, _, _, _) => substr,
+            Expr::Call(substr, _, _) => substr,
+            Expr::IfThenElse(substr, _, _, _) => substr,
+            Expr::LetIn(substr, _, _) => substr,
+            Expr::Float(substr, _) => substr,
+            Expr::Int(substr, _) => substr,
+        }
+    }
 }

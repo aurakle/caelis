@@ -4,7 +4,7 @@ use inkwell::{
 };
 use std::fmt::Debug;
 
-use crate::ast::TypeRef;
+use crate::ast::{Ast, Name, TypeRef};
 
 use super::CodeGen;
 
@@ -32,28 +32,28 @@ impl<'ctx> Type<'ctx> for TypeLink {
 
 #[derive(Debug, Clone)]
 pub struct Struct<'ctx> {
-    pub name: String,
+    pub name: Name,
     pub llvm_struct: StructType<'ctx>,
     pub fields: StructFields,
 }
 
 #[derive(Debug, Clone)]
 pub enum StructFields {
-    Unresolved(Vec<(String, TypeRef)>),
-    Resolved(Vec<(String, TypeLink)>),
+    Unresolved(Vec<(Name, TypeRef)>),
+    Resolved(Vec<(Name, TypeLink)>),
 }
 
 impl<'ctx> Struct<'ctx> {
     pub fn new(
         context: &'ctx Context,
-        name: String,
-        fields: Vec<(String, TypeRef)>,
-        generic_args: Option<&Vec<(String, Vec<TypeRef>)>>,
+        name: Name,
+        fields: Vec<(Name, TypeRef)>,
+        generic_args: Option<&Vec<(Name, Vec<TypeRef>)>>,
     ) -> Self {
         //TODO: support generics
         Self {
             name: name.clone(),
-            llvm_struct: context.opaque_struct_type(&name),
+            llvm_struct: context.opaque_struct_type(&name.text().to_string()),
             fields: StructFields::Unresolved(fields),
         }
     }
