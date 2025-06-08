@@ -34,11 +34,6 @@ fn main() {
 
     errs.into_iter()
         .map(|e| e.map_token(|c| c.to_string()))
-        .chain(
-            parse_errs
-                .into_iter()
-                .map(|e| e.map_token(|tok| format!("{:#?}", tok.kind))),
-        )
         .for_each(|e| {
             Report::build(ReportKind::Error, (filename.clone(), e.span().into_range()))
                 .with_config(ariadne::Config::new().with_index_type(ariadne::IndexType::Byte))
@@ -48,8 +43,25 @@ fn main() {
                         .with_message(e.reason().to_string())
                         .with_color(Color::Red),
                 )
+                .finish()
+                .print(sources([(filename.clone(), src.clone())]))
+                .unwrap()
+        });
+
+    parse_errs.into_iter()
+        .map(|e| (e.reason().found().map(|t| t.span.range()).unwrap_or(arcstr.len()..arcstr.len()), e.map_token(|t| format!("{}", t.kind))))
+        .for_each(|(range, e)| {
+            Report::build(ReportKind::Error, (filename.clone(), range.clone()))
+                .with_config(ariadne::Config::new().with_index_type(ariadne::IndexType::Byte))
+                .with_message(e.to_string())
+                .with_label(
+                    Label::new((filename.clone(), range))
+                        .with_message(e.reason().to_string())
+                        .with_color(Color::Red),
+                )
                 .with_labels(e.contexts().map(|(label, span)| {
-                    Label::new((filename.clone(), span.into_range()))
+                    let range = tokens.clone().unwrap().get(span.start).unwrap().span.range().start..tokens.clone().unwrap().get(span.end).unwrap().span.range().end;
+                    Label::new((filename.clone(), range))
                         .with_message(format!("while parsing this {label}"))
                         .with_color(Color::Yellow)
                 }))

@@ -9,8 +9,8 @@ use chumsky::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
-    pub kind: TokenKind,
     pub span: Substr,
+    pub kind: TokenKind,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -111,8 +111,8 @@ fn create<
         } = info.span();
 
         Token {
-            kind,
             span: text.substr(start..end),
+            kind,
         }
     })
     .padded_by(
